@@ -5,11 +5,11 @@ Extracts geometry, layers, materials, annotations
 """
 import sys, os, re
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.config import CHROMA_DRAWINGS, OLLAMA_URL, LLM_MODEL_FAST, CHUNK_SIZE, CHUNK_OVERLAP, EXTENSIONS
+from config.config import CHROMA_PATHS, OLLAMA_URL, LLM_MODEL_FAST, CHUNK_SIZE, CHUNK_OVERLAP, EXTENSIONS
 from pathlib import Path
 import chromadb, fitz
 
-client     = chromadb.PersistentClient(path=CHROMA_DRAWINGS)
+client = chromadb.PersistentClient(path=CHROMA_PATHS["drawings"])
 collection = client.get_or_create_collection("drawings")
 
 SYSTEM_PROMPT = """You are a technical assistant specialized in architectural and industrial drawing.
