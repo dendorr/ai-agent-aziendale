@@ -1,0 +1,12 @@
+chroma_db/
+chroma_disegni/
+chroma/
+kiwix/
+*.zim
+logs/
+*.log
+venv/
+__pycache__/
+*.pyc
+documenti_test/
+data/

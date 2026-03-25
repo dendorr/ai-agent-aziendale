@@ -1,0 +1,10 @@
+WATCH_FOLDER = "/mnt/c/Users/ferra/OneDrive - Università di Pavia/Desktop/ai-test"
+CHROMA_DB_PATH = "/home/ferra/ai-agent/chroma_db"
+EMBEDDING_MODEL = "qwen2.5:7b"
+SUPPORTED_EXTENSIONS = [
+    ".pdf", ".xlsx", ".xls", ".csv",
+    ".dxf", ".dwg", ".svg", ".ifc",
+    ".stp", ".step", ".stl", ".obj",
+    ".3dm", ".txt", ".md"
+]
+OLLAMA_URL = "http://localhost:11434"
