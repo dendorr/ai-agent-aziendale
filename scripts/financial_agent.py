@@ -1,7 +1,7 @@
 """
-FINANCIAL AGENT v2 — with Semantic Analyzer
+FINANCIAL AGENT — with Lazy Semantic Cards + Color Support
 Handles: Excel (with colors), CSV, PDF invoices/reports
-New: automatically generates semantic cards for every indexed file
+Semantic cards generated on first query, cached forever.
 """
 import sys, os, json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,7 +28,7 @@ def save_memory(memory):
     MEMORY_FILE.write_text(json.dumps(memory, indent=2, ensure_ascii=False), encoding="utf-8")
 
 def add_to_memory(key, value):
-    """Manually add a stable business fact to memory."""
+    """Manually add a stable business fact to persistent memory."""
     memory = load_memory()
     memory[key] = value
     save_memory(memory)
@@ -60,7 +60,7 @@ def get_color_meaning(hex_color):
 # ── File readers ─────────────────────────────────────────────
 
 def read_excel(f):
-    """Read Excel with colors and structured row labeling."""
+    """Read Excel with full color support and structured row labeling."""
     try:
         import openpyxl
         wb   = openpyxl.load_workbook(f, data_only=True)
@@ -87,7 +87,7 @@ def read_excel(f):
                 if not any(v.strip() for v in row_vals): continue
                 if first:
                     headers = row_vals
-                    text   += "INTESTAZIONI: " + " | ".join(row_vals) + "\n\n"
+                    text   += "HEADERS: " + " | ".join(row_vals) + "\n\n"
                     first   = False
                 else:
                     for h, v in zip(headers, row_color):
@@ -106,7 +106,7 @@ def read_excel(f):
             return f"[Error reading Excel: {e2}]"
 
 def read_pdf_financial(f):
-    """Multi-strategy PDF reader: PyMuPDF + pdfplumber for tables."""
+    """Multi-strategy PDF reader: PyMuPDF text + pdfplumber tables."""
     results = []
     try:
         doc  = fitz.open(f)
@@ -165,17 +165,14 @@ def chunk_text(text):
         i += CHUNK_SIZE - CHUNK_OVERLAP
     return chunks or [""]
 
-# ── Indexing with semantic cards ─────────────────────────────
+# ── Indexing — fast, no AI ───────────────────────────────────
 def index_file(filepath):
-    """Index file + generate semantic card automatically."""
+    """Index file — fast, no AI, only raw text extraction."""
     p   = Path(filepath)
     ext = p.suffix.lower()
     if ext not in EXTENSIONS["financial"]: return 0
     text = read_file(filepath)
     if not text.strip(): return 0
-
-
-    # Index raw chunks
     chunks = chunk_text(text)
     for i, chunk in enumerate(chunks):
         collection.upsert(
@@ -198,47 +195,44 @@ def index_folder(folder):
     total = 0
     for f in files:
         n = index_file(str(f))
-        if n: print(f"  [OK] {f.name} -> {n} chunks + semantic card")
+        if n: print(f"  [OK] {f.name} -> {n} chunks")
         else: print(f"  [--] {f.name} -> skipped")
         total += n
-    print(f"[Financial] Done — {total} chunks + {len(files)} semantic cards")
+    print(f"[Financial] Done — {total} total chunks")
 
-# ── Search ───────────────────────────────────────────────────
+# ── Search with lazy semantic cards ──────────────────────────
 def search(query):
+    """Search with lazy semantic card generation."""
     return analyzer.search_with_cards(collection, query, "financial", n_results=6)
 
 # ── Answer ───────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are a precise financial assistant for a company.
-You have access to DOCUMENT UNDERSTANDING (semantic cards) and RAW DATA.
-
-Always use the semantic cards to understand the context FIRST,
-then use the raw data to find specific values.
+Use DOCUMENT UNDERSTANDING (semantic cards) to understand context FIRST,
+then use RAW DATA to find specific values.
 
 EXCEL COLOR LEGEND:
 - [PAGATO/CONFERMATO] = green = confirmed payment
 - [NON PAGATO/RIFIUTATO] = red = unpaid/rejected
 - [IN ATTESA/PENDENTE] = yellow = pending
 
-STRICT RULES:
+RULES:
 - Always reply in Italian
-- Read the semantic card to understand what the document is about
-- Use raw data to find specific values
-- Never invent numbers
+- ONLY use data from the provided documents
+- Always cite source file and sheet
+- If not found: "Non ho trovato questo dato nei documenti"
+- Never invent figures
 - Show all calculation steps
-- If asked "how much per person" look for unit price in the semantic card
-- Format: € 1.234,56
-- List who paid and who didn't based on cell colors"""
+- Format: € 1.234,56"""
 
 def answer(question, context):
     import requests
-    memory = load_memory()
-    memory_text = ""
+    memory     = load_memory()
+    memory_txt = ""
     if memory:
-        memory_text = "\nKNOWLEDGE BASE:\n"
-        memory_text += "\n".join(f"  - {k}: {v}" for k, v in memory.items()) + "\n"
-
+        memory_txt = "\nKNOWLEDGE BASE:\n"
+        memory_txt += "\n".join(f"  - {k}: {v}" for k, v in memory.items()) + "\n"
     prompt = f"""{SYSTEM_PROMPT}
-{memory_text}
+{memory_txt}
 {context}
 
 QUESTION: {question}
@@ -258,5 +252,6 @@ ANSWER (in Italian):"""
         return f"Error: {e}"
 
 if __name__ == "__main__":
+    import sys
     folder = sys.argv[1] if len(sys.argv) > 1 else "."
     index_folder(folder)
