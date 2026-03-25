@@ -1,0 +1,30 @@
+# Company AI Agent System — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# API server
+fastapi
+uvicorn[standard]
+
+# Vector database
+chromadb
+
+# Document readers
+pymupdf          # PDF reading (fitz)
+openpyxl         # Excel .xlsx
+python-pptx      # PowerPoint .pptx
+python-docx      # Word .docx
+pandas           # CSV + Excel fallback
+
+# Technical drawing readers
+ezdxf            # DXF files
+svgpathtools     # SVG paths
+lxml             # SVG/XML parsing
+trimesh          # STL, OBJ, 3D files
+numpy-stl        # STL files
+ifcopenshell     # IFC/BIM files (optional — install separately if needed)
+
+# File monitoring
+watchdog
+
+# HTTP client
+requests

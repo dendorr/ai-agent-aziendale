@@ -1,141 +1,88 @@
-import sys
-import os
-sys.path.append(os.path.expanduser("~/ai-agent"))
-
-from config.config import WATCH_FOLDER, CHROMA_DB_PATH, SUPPORTED_EXTENSIONS
+"""
+GLOBAL FILE WATCHER
+Monitors all three agent folders every 10 seconds.
+Routes each new or modified file to the correct agent for indexing.
+Detects file modifications via mtime (modification timestamp).
+"""
+import sys, os, time
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.config import FOLDERS, EXTENSIONS
 from pathlib import Path
-import chromadb
-import pdfplumber
-import openpyxl
-import ezdxf
-import time
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 
-client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-collection = client.get_or_create_collection("documenti_aziendali")
+import financial_agent as financial
+import drawings_agent  as drawings
+import documents_agent as documents
 
-def leggi_pdf(filepath):
-    import fitz
-    testo = ""
-    doc = fitz.open(filepath)
-    for pagina in doc:
-        testo += pagina.get_text() + "\n"
-    doc.close()
-    return testo
+# Map each agent name to its module and supported extensions
+AGENTS = {
+    "financial": (financial, EXTENSIONS["financial"]),
+    "drawings":  (drawings,  EXTENSIONS["drawings"]),
+    "documents": (documents, EXTENSIONS["documents"]),
+}
 
-def chunk_testo(testo, chunk_size=500, overlap=50):
-    parole = testo.split()
-    chunks = []
-    i = 0
-    while i < len(parole):
-        chunk = " ".join(parole[i:i+chunk_size])
-        chunks.append(chunk)
-        i += chunk_size - overlap
-    return chunks
+def route_and_index(filepath):
+    """Determine which agent handles this file and index it."""
+    p   = Path(filepath)
+    ext = p.suffix.lower()
+    for agent_name, (agent_module, extensions) in AGENTS.items():
+        if ext in extensions:
+            n = agent_module.index_file(filepath)
+            if n:
+                print(f"[{agent_name.upper()}] {p.name} -> {n} chunks", flush=True)
+            return
+    print(f"[SKIP] {Path(filepath).name} — unsupported format", flush=True)
 
-def leggi_excel(filepath):
-    testo = ""
-    wb = openpyxl.load_workbook(filepath, data_only=True)
-    for foglio in wb.sheetnames:
-        ws = wb[foglio]
-        testo += f"Foglio: {foglio}\n"
-        for riga in ws.iter_rows(values_only=True):
-            riga_pulita = [str(c) for c in riga if c is not None]
-            if riga_pulita:
-                testo += " | ".join(riga_pulita) + "\n"
-    return testo
+def remove_from_index(filepath):
+    """Remove all chunks of a deleted file from all agent databases."""
+    p = Path(filepath)
+    for agent_name, (agent_module, _) in AGENTS.items():
+        try:
+            all_ids = agent_module.collection.get()["ids"]
+            ids_to_delete = [i for i in all_ids if i.startswith(str(filepath) + "__c")]
+            if ids_to_delete:
+                agent_module.collection.delete(ids=ids_to_delete)
+                print(f"[{agent_name.upper()}] Removed {p.name} ({len(ids_to_delete)} chunks)", flush=True)
+        except Exception:
+            pass
 
-def leggi_dxf(filepath):
-    testo = ""
-    doc = ezdxf.readfile(filepath)
-    msp = doc.modelspace()
-    for entita in msp:
-        if entita.dxftype() == "TEXT":
-            testo += entita.dxf.text + "\n"
-        elif entita.dxftype() == "MTEXT":
-            testo += entita.plain_mtext() + "\n"
-    return testo
+def run():
+    """Main watcher loop — polls all folders every 10 seconds."""
+    print("[*] Global file watcher started", flush=True)
+    for agent_name, folder in FOLDERS.items():
+        Path(folder).mkdir(parents=True, exist_ok=True)
+        print(f"[*] Monitoring [{agent_name}]: {folder}", flush=True)
 
-def leggi_file(filepath):
-    ext = Path(filepath).suffix.lower()
-    try:
-        if ext == ".pdf":
-            return leggi_pdf(filepath)
-        elif ext in [".xlsx", ".xls"]:
-            return leggi_excel(filepath)
-        elif ext == ".dxf":
-            return leggi_dxf(filepath)
-        elif ext in [".txt", ".md", ".csv", ".svg"]:
-            with open(filepath, "r", errors="ignore") as f:
-                return f.read()
-        else:
-            return f"File {ext} rilevato: {Path(filepath).name}"
-    except Exception as e:
-        return f"Errore nella lettura: {e}"
+    # Print initial database stats
+    for agent_name, (agent_module, _) in AGENTS.items():
+        print(f"[*] {agent_name}: {agent_module.collection.count()} chunks in DB", flush=True)
 
-def indicizza_file(filepath):
-    ext = Path(filepath).suffix.lower()
-    if ext not in SUPPORTED_EXTENSIONS:
-        return
-    print(f"[+] Nuovo file rilevato: {Path(filepath).name}")
-    testo = leggi_file(filepath)
-    if testo:
-        chunks = chunk_testo(testo)
-        for i, chunk in enumerate(chunks):
-            collection.upsert(
-                documents=[chunk],
-                ids=[f"{str(filepath)}__chunk{i}"],
-                metadatas=[{"filename": Path(filepath).name, "path": str(filepath), "chunk": i}]
-            )
-        print(f"[✓] Indicizzato: {Path(filepath).name} → {len(chunks)} chunks")
-
-def rimuovi_file(filepath):
-    try:
-        collection.delete(ids=[str(filepath)])
-        print(f"[-] Rimosso dal database: {Path(filepath).name}")
-    except:
-        pass
-
-class FileHandler(FileSystemEventHandler):
-    def on_created(self, event):
-        if not event.is_directory:
-            time.sleep(1)
-            indicizza_file(event.src_path)
-
-    def on_modified(self, event):
-        if not event.is_directory:
-            time.sleep(1)
-            indicizza_file(event.src_path)
-
-    def on_deleted(self, event):
-        if not event.is_directory:
-            rimuovi_file(event.src_path)
-
-    def on_moved(self, event):
-        if not event.is_directory:
-            rimuovi_file(event.src_path)
-            indicizza_file(event.dest_path)
-
-if __name__ == "__main__":
-    print(f"[*] Watcher avviato su: {WATCH_FOLDER}")
-    print(f"[*] Documenti già nel database: {collection.count()}")
-    print(f"[*] Controllo ogni 10 secondi... (Ctrl+C per fermare)")
-
-    file_visti = set()
+    # Track files by path -> last modification time
+    file_registry = {}
 
     while True:
         try:
-            cartella = Path(WATCH_FOLDER)
-            for filepath in cartella.rglob("*"):
-                if filepath.is_file() and filepath.suffix.lower() in SUPPORTED_EXTENSIONS:
-                    if str(filepath) not in file_visti:
-                        file_visti.add(str(filepath))
-                        indicizza_file(str(filepath))
+            for agent_name, folder in FOLDERS.items():
+                _, extensions = AGENTS[agent_name]
+                for f in Path(folder).rglob("*"):
+                    if not f.is_file(): continue
+                    if f.suffix.lower() not in extensions: continue
+                    try:
+                        mtime = f.stat().st_mtime
+                    except Exception:
+                        continue
+                    key = str(f)
+                    if file_registry.get(key) != mtime:
+                        file_registry[key] = mtime
+                        route_and_index(str(f))
+
             time.sleep(10)
+
         except KeyboardInterrupt:
-            print("\n[*] Watcher fermato.")
+            print("\n[*] Watcher stopped.", flush=True)
             break
         except Exception as e:
-            print(f"[!] Errore: {e}")
-            time.sleep(10)
+            print(f"[!] Watcher error: {e}", flush=True)
+            time.sleep(15)
+
+if __name__ == "__main__":
+    run()

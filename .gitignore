@@ -1,12 +1,41 @@
+cat > ~/ai-agent/.gitignore << 'EOF'
+# Vector databases — never on GitHub
+chroma/
 chroma_db/
 chroma_disegni/
-chroma/
+
+# Kiwix offline databases — too large
 kiwix/
 *.zim
-logs/
-*.log
-venv/
+
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/
+
+# Logs
+logs/
+*.log
+
+# Test documents — company data never on GitHub
 documenti_test/
 data/
+
+# Editor backups
+*.save
+*~
+
+# Credentials
+*.env
+*credentials*
+*password*
+
+# OS files
+.DS_Store
+Thumbs.db
+EOF
