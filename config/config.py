@@ -7,7 +7,7 @@ HOME_DIR = os.path.expanduser("~")
 BASE_DIR = os.path.join(HOME_DIR, "ai-agent")
 
 OLLAMA_URL     = "http://localhost:11434"
-LLM_MODEL      = "qwen2.5:7b"
+LLM_MODEL      = "mistral-nemo:latest"
 LLM_MODEL_FAST = "llama3.2:latest"
 EMBED_MODEL    = "nomic-embed-text"
 AGENT_PORT     = 8000

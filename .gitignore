@@ -1,4 +1,3 @@
-cat > ~/ai-agent/.gitignore << 'EOF'
 # Vector databases — never on GitHub
 chroma/
 chroma_db/
@@ -7,6 +6,14 @@ chroma_disegni/
 # Kiwix offline databases — too large
 kiwix/
 *.zim
+
+# SQLite databases — generated locally, may contain company data
+*.db
+
+# Memory cache files — contain local paths and company data
+memory/semantic_cards.json
+memory/knowledge_base.json
+memory/financial_memory.json
 
 # Python cache
 __pycache__/
@@ -38,4 +45,3 @@ data/
 # OS files
 .DS_Store
 Thumbs.db
-EOF
