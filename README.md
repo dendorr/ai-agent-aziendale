@@ -1,70 +1,51 @@
-# Company AI Agent — Local Multi-Agent System
+# AI Agent Aziendale
 
-A fully local, air-gapped AI agent system designed for small and medium businesses.
-No cloud, no subscriptions, no data ever leaves your network.
-
----
-
-## What It Does
-
-Three specialized AI agents, each expert in a specific document domain:
-
-### Financial Agent
-- Reads and analyzes company Excel files (invoices, payments, budgets, market reports)
-- Understands color-coded cells (e.g. green = paid, red = unpaid, yellow = pending)
-- Handles complex multi-sheet Excel files with hundreds of rows
-- Builds a local SQLite database from large Excel files for fast structured queries
-- Answers natural language questions about financial data in Italian
-
-### Drawings Agent
-- Reads and analyzes technical CAD files: DXF, STP/STEP, IFC, SVG, STL
-- Extracts geometric information: solids, faces, layers, materials, units of measure
-- Provides dimensions, component lists, and structural descriptions
-- Automatically converts DWG to DXF via LibreCAD
-- Supports BIM files (IFC) with floors, walls, doors, windows
-
-### Documents Agent
-- Reads company documents: PDF, PowerPoint (PPTX), Word (DOCX), Markdown
-- Extracts text, tables, slide notes, headings, and structured content
-- Answers questions about reports, manuals, procedures, and presentations
-- Always cites the source document and page/slide number
+A fully local AI agent system for small businesses. No cloud, no subscriptions, no data ever leaves the network.
 
 ---
 
-## Internal Memory System
+## What it does
 
-All three agents use a lazy semantic card system:
-- On first query, the AI generates a structured summary for each file
-- Summaries are cached locally — no re-analysis on subsequent queries
-- The system remembers what is in your files across sessions
-- Memory is stored in JSON and ChromaDB vector databases
+Three specialized agents, each focused on a specific type of company document.
+
+**Financial Agent**
+
+Reads any Excel or CSV file and figures out the structure automatically — column names, data types, numeric statistics, color patterns. Builds a local SQLite database from the file so queries are fast and precise. Answers natural language questions about invoices, payments, budgets, and market reports. Uses a two-model pipeline: a fast small model generates the SQL, the main model writes the answer.
+
+**Drawings Agent**
+
+Reads technical CAD files: DXF, STP/STEP, IFC, SVG, STL. Extracts geometry, layers, materials, dimensions, and component lists. DWG files are automatically converted to DXF via LibreCAD before processing.
+
+**Documents Agent**
+
+Reads PDFs, PowerPoint presentations, Word documents, and Markdown files. Converts everything to structured Markdown before indexing, which is cached to disk so re-indexing is fast. Runs OCR on embedded images (including images inside PPTX slides) using pytesseract with easyocr as fallback. Extracts speaker notes, tables, headings, and all text content. Always cites the source file and page or slide number.
 
 ---
 
 ## Architecture
 
 ```
-User (Open WebUI) -> FastAPI Server (port 8000) -> Agent Router
-                                                    |- Financial Agent -> ChromaDB + SQLite
-                                                    |- Drawings Agent  -> ChromaDB
-                                                    |- Documents Agent -> ChromaDB
-                                                           |
-                                                    Ollama (local LLM)
+Open WebUI (port 3000) -> FastAPI server (port 8000) -> agent router
+                                                         |- Financial Agent  -> ChromaDB + SQLite
+                                                         |- Drawings Agent   -> ChromaDB
+                                                         |- Documents Agent  -> ChromaDB + Markdown cache
+                                                                |
+                                                         Ollama (local LLM)
 ```
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Component | Technology |
 |---|---|
-| LLM Runtime | Ollama |
-| Models | qwen2.5:7b (dev) / qwen2.5:32b (production) |
-| Chat Interface | Open WebUI via Docker |
-| API Server | FastAPI (OpenAI-compatible) |
-| Vector Database | ChromaDB (one collection per agent) |
-| Structured Database | SQLite (for large tabular data) |
-| Offline Knowledge | Kiwix Wikipedia (port 8080) |
+| LLM runtime | Ollama |
+| Models | qwen2.5:7b (main), qwen3:0.6b (routing), qwen2.5:32b (production server) |
+| Chat interface | Open WebUI via Docker |
+| API server | FastAPI |
+| Vector database | ChromaDB |
+| Structured database | SQLite |
+| OCR | pytesseract + easyocr |
 | Language | Python 3.12 |
 
 ---
@@ -73,61 +54,72 @@ User (Open WebUI) -> FastAPI Server (port 8000) -> Agent Router
 
 | Environment | Specs |
 |---|---|
-| Development | Samsung Galaxy Book 4 Ultra — RTX 4050, 16GB RAM, Windows 11 + WSL2/Ubuntu 24.04 |
-| Production | Office server — RTX 4090 |
+| Development | Samsung Galaxy Book 4 Ultra, RTX 4050, 16GB RAM, Windows 11 + WSL2 Ubuntu 24.04 |
+| Production | Office server, RTX 4090 |
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 ai-agent/
 ├── config/
-│   └── config.py               # Central configuration
+│   └── config.py               # paths, models, chunk sizes
 ├── scripts/
 │   ├── server.py               # FastAPI multi-agent server
-│   ├── watcher.py              # Auto file watcher & indexer
-│   ├── financial_agent.py      # Financial documents agent
-│   ├── drawings_agent.py       # Technical drawings agent
-│   ├── documents_agent.py      # Company documents agent
-│   ├── semantic_analyzer.py    # Lazy semantic card engine
-│   ├── db_builder.py           # SQLite builder for large Excel files
+│   ├── watcher.py              # file watcher, re-indexes on change
+│   ├── financial_agent.py      # Excel/CSV/PDF agent with SQLite
+│   ├── drawings_agent.py       # CAD files agent
+│   ├── documents_agent.py      # PDF/PPTX/DOCX agent with OCR
+│   ├── semantic_analyzer.py    # lazy semantic card engine
 │   └── convert_dwg.py          # DWG to DXF converter
-├── memory/
-│   ├── semantic_cards.json     # Cached file summaries
-│   └── data.db                 # SQLite structured data (git-ignored)
-├── chroma/                     # Vector databases (git-ignored)
+├── memory/                     # JSON memory files (git-ignored)
+├── markdown_cache/             # converted documents cache (git-ignored)
+├── chroma/                     # vector databases (git-ignored)
 │   ├── financial/
 │   ├── drawings/
 │   └── documents/
-└── logs/                       # Runtime logs (git-ignored)
+└── logs/                       # runtime logs (git-ignored)
 ```
 
 ---
 
-## Quick Start
+## Setup
 
-### 1. Prerequisites
+The easiest way is to run the setup script, which installs all system and Python dependencies and creates the directory structure.
+
 ```bash
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull models
-ollama pull qwen2.5:7b
-ollama pull llama3.2
-
-# Start Open WebUI
-docker run -d -p 3000:3000 --name open-webui ghcr.io/open-webui/open-webui:main
+bash setup.sh
 ```
 
-### 2. Install dependencies
+Or manually:
+
 ```bash
-python3 -m venv ~/ai-env
+# system dependencies (Ubuntu/WSL2)
+sudo apt install tesseract-ocr tesseract-ocr-ita tesseract-ocr-eng libgl1
+
+# Python environment
+python3.12 -m venv ~/ai-env
 source ~/ai-env/bin/activate
 pip install -r requirements.txt
+
+# Ollama models
+ollama pull qwen2.5:7b
+ollama pull qwen3:0.6b
+ollama pull llama3.2
+
+# Open WebUI (first time)
+docker run -d -p 3000:3000 \
+  --add-host=host.docker.internal:host-gateway \
+  -v open-webui:/app/backend/data \
+  --name open-webui \
+  ghcr.io/open-webui/open-webui:main
 ```
 
-### 3. Start the system
+---
+
+## Starting the system
+
 ```bash
 source ~/ai-env/bin/activate
 sudo systemctl restart ollama
@@ -137,26 +129,23 @@ nohup python server.py  > ~/ai-agent/logs/server.log  2>&1 &
 nohup python watcher.py > ~/ai-agent/logs/watcher.log 2>&1 &
 ```
 
-### 4. Open the chat
-Navigate to `http://localhost:3000` and select one of the three agents as your model.
+Then open `http://localhost:3000` and select an agent as the model.
 
 ---
 
-## Privacy and Security
-
-- 100% local — no data ever sent to external servers
-- Air-gapped ready — works with no internet connection
-- Company documents, financial data, and databases are git-ignored
-- API server is not publicly exposed (firewall protected)
-- OpenAPI docs disabled in production
-
----
-
-## Remote Access (optional)
+## Remote access
 
 ```bash
 cloudflared tunnel --protocol http2 --url http://localhost:3000
 ```
+
+Note: Cloudflare tunnels may be blocked on mobile hotspots (port 7844).
+
+---
+
+## Privacy
+
+Everything runs locally. No data is sent to external servers. The system works fully air-gapped. Company documents, financial files, and databases are all git-ignored.
 
 ---
 
