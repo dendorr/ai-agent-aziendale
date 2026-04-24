@@ -1,50 +1,85 @@
-# Vector databases — never on GitHub
-chroma/
-chroma_db/
-chroma_disegni/
-
-# Kiwix offline databases — too large
-kiwix/
-*.zim
-
-# SQLite databases — generated locally, may contain company data
-*.db
-
-# Memory cache files — contain local paths and company data
-memory/semantic_cards.json
-memory/knowledge_base.json
-memory/financial_memory.json
-
-# Python cache
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pyw
+*.pyz
+dist/
+build/
+*.egg-info/
+.eggs/
 
 # Virtual environment
 venv/
 .venv/
+ai-env/
+env/
+
+# Environment and credentials
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.cert
+*.p12
+*.pfx
+*.token
+*credentials*
+*secret*
+*password*
+*api_key*
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Vector databases
+chroma/
+chroma_db/
+chroma_disegni/
+
+# Memory and cache
+memory/
+markdown_cache/
+
+# Large binary data
+kiwix/
+*.zim
+
+# Company documents and data
+data/
+documenti_test/
+*.xlsx
+*.xls
+*.csv
+*.pdf
+*.docx
+*.pptx
+*.ppt
+*.doc
 
 # Logs
 logs/
 *.log
 
-# Test documents — company data never on GitHub
-documenti_test/
-data/
-
-# Editor backups
-*.save
-*~
-
-# Credentials
-*.env
-*credentials*
-*password*
-
-# OS files
+# OS
 .DS_Store
+.DS_Store?
 Thumbs.db
-CLAUDE.md
+ehthumbs.db
+desktop.ini
 
-# markdown cache and memory
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.save
+*.bak
+
+# Claude Code
+CLAUDE.md
