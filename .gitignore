@@ -1,51 +1,23 @@
-# Vector databases — never on GitHub
+# Dati aziendali — MAI su GitHub
+data/
+memory/
+markdown_cache/
 chroma/
-chroma_db/
-chroma_disegni/
-
-# Kiwix offline databases — too large
-kiwix/
-*.zim
-
-# SQLite databases — generated locally, may contain company data
+logs/
 *.db
 
-# Memory cache files — contain local paths and company data
-memory/semantic_cards.json
-memory/knowledge_base.json
-memory/financial_memory.json
-
-# Python cache
+# Cache Python
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
-
-# Virtual environment
-venv/
 .venv/
+ai-env/
 
-# Logs
-logs/
-*.log
-
-# Test documents — company data never on GitHub
-documenti_test/
-data/
-
-# Editor backups
-*.save
-*~
-
-# Credentials
-*.env
-*credentials*
-*password*
-
-# OS files
+# Sistema
 .DS_Store
-Thumbs.db
-CLAUDE.md
-
-# markdown cache and memory
-scripts/server.py.bak
+*.Zone.Identifier
+.env
+kiwix/
+server_debug.log
+kiwix/
+server_debug.log
