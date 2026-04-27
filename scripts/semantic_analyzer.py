@@ -1,12 +1,12 @@
 """
 SEMANTIC ANALYZER — Lazy evaluation, full async
 
-Le schede semantiche vengono generate SOLO alla prima query (non durante
-l'indicizzazione, per non rallentare il watcher). Una volta generate sono
-cached per sempre (su disco + dentro ChromaDB).
+Semantic cards are generated ONLY on first query (not during indexing,
+to avoid slowing down the watcher). Once generated they are cached
+permanently (on disk + inside ChromaDB).
 
-Tutte le chiamate LLM sono async via llm_client.AsyncOpenAI.
-ChromaDB è sincrono per natura → wrappato in run_in_executor.
+All LLM calls are async via llm_client.AsyncOpenAI.
+ChromaDB is synchronous by nature → wrapped in run_in_executor.
 """
 
 import sys
@@ -23,7 +23,7 @@ from llm_client import chat_complete
 MEMORY_FILE = Path(MEMORY_PATH) / "semantic_cards.json"
 
 
-# ── Persistenza schede su disco ───────────────────────────────────────────────
+# ── Card persistence on disk ─────────────────────────────────────────────────
 
 def load_cards() -> dict:
     if MEMORY_FILE.exists():
@@ -41,7 +41,7 @@ def save_cards(cards: dict):
     )
 
 
-# ── Prompt schede semantiche per agent ────────────────────────────────────────
+# ── Semantic card prompts per agent type ──────────────────────────────────────
 
 _SYSTEM_PROMPT = (
     "Sei un assistente che produce schede semantiche strutturate "
@@ -51,7 +51,7 @@ _SYSTEM_PROMPT = (
 
 
 def _user_prompt(filename: str, raw_text: str, agent_type: str) -> str:
-    """Genera il prompt utente specifico per il tipo di agente."""
+    """Build the user prompt specific to the agent type."""
     preview = raw_text[:3000]
 
     if agent_type == "financial":
@@ -92,10 +92,10 @@ PUNTI_CHIAVE: [3-5 informazioni più importanti]"""
     )
 
 
-# ── Generazione card (async) ──────────────────────────────────────────────────
+# ── Card generation (async) ──────────────────────────────────────────────────
 
 async def generate_semantic_card(filename: str, raw_text: str, agent_type: str) -> str:
-    """Chiede al modello fast di analizzare il file e produrre una scheda."""
+    """Ask the fast model to analyze the file and produce a semantic card."""
     user_prompt = _user_prompt(filename, raw_text, agent_type)
 
     card = await chat_complete(
@@ -109,19 +109,19 @@ async def generate_semantic_card(filename: str, raw_text: str, agent_type: str) 
     return f"=== SCHEDA SEMANTICA: {filename} ===\n{card}\n"
 
 
-# ── Get-or-create con cache ChromaDB + disco ──────────────────────────────────
+# ── Get-or-create card with ChromaDB + disk cache ────────────────────────────
 
-async def search_with_cards(collection, query: str, agent_type: str,
-                             n_results: int = 6, where_filter: dict = None) -> str:
+async def get_or_create_card(filepath: str, raw_text: str,
+                              agent_type: str, collection) -> str:
     """
-    Ottiene la scheda dalla cache (ChromaDB) o la genera ora.
-    Tutte le operazioni ChromaDB (sincrone) sono delegate a un executor.
+    Retrieve the card from cache (ChromaDB) or generate it now.
+    All ChromaDB operations (synchronous) are delegated to an executor.
     """
     filename = Path(filepath).name
     card_id  = f"{filepath}__semantic_card"
     loop     = asyncio.get_running_loop()
 
-    # ── Check cache su ChromaDB ──────────────────────────────────────────────
+    # ── Check ChromaDB cache ─────────────────────────────────────────────────
     try:
         existing = await loop.run_in_executor(
             None, lambda: collection.get(ids=[card_id])
@@ -131,11 +131,11 @@ async def search_with_cards(collection, query: str, agent_type: str,
     except Exception:
         pass
 
-    # ── Generazione (lazy, prima volta) ──────────────────────────────────────
-    print(f"  [AI] Generazione scheda semantica per {filename}...", flush=True)
+    # ── Generation (lazy, first time) ────────────────────────────────────────
+    print(f"  [AI] Generating semantic card for {filename}...", flush=True)
     card = await generate_semantic_card(filename, raw_text, agent_type)
 
-    # ── Salva su ChromaDB (sync → executor) ──────────────────────────────────
+    # ── Save to ChromaDB (sync → executor) ───────────────────────────────────
     try:
         await loop.run_in_executor(
             None,
@@ -154,7 +154,7 @@ async def search_with_cards(collection, query: str, agent_type: str,
     except Exception as e:
         print(f"  [warn] save card → ChromaDB: {e}", flush=True)
 
-    # ── Salva su disco (file JSON) — anche questo via executor ───────────────
+    # ── Save to disk (JSON file) — also via executor ─────────────────────────
     try:
         await loop.run_in_executor(None, _persist_card_to_disk, str(filepath), card)
     except Exception as e:
@@ -164,21 +164,24 @@ async def search_with_cards(collection, query: str, agent_type: str,
 
 
 def _persist_card_to_disk(filepath: str, card: str):
-    """Helper sync per scrivere la card su disco (chiamato da executor)."""
+    """Sync helper to write the card to disk (called from executor)."""
     cards = load_cards()
     cards[filepath] = card
     save_cards(cards)
 
 
-# ── Search con generazione lazy delle card ────────────────────────────────────
+# ── Search with lazy card generation ─────────────────────────────────────────
 
 async def search_with_cards(collection, query: str, agent_type: str,
-                             n_results: int = 6) -> str:
+                             n_results: int = 6, where_filter: dict = None) -> str:
     """
-    Esegue similarity search su ChromaDB e arricchisce il contesto con
-    le schede semantiche dei file rilevanti (generate al volo se mancanti).
+    Run similarity search on ChromaDB and enrich context with semantic
+    cards for the relevant files (generated on-the-fly if missing).
 
-    Tutte le operazioni ChromaDB sono in executor.
+    Accepts an optional where_filter dict to filter by metadata
+    (e.g. {"filename": "Lez13.pdf"}) for direct filename matching.
+
+    All ChromaDB operations run in executor.
     """
     loop = asyncio.get_running_loop()
 
@@ -202,7 +205,7 @@ async def search_with_cards(collection, query: str, agent_type: str,
     chunks = []
     seen_files = set()
 
-    # Separa schede da chunk grezzi
+    # Separate semantic cards from raw chunks
     for doc, meta in zip(r["documents"][0], r["metadatas"][0]):
         fname = meta.get("filename", "")
         chunk_type = meta.get("type", "chunk")
@@ -213,7 +216,7 @@ async def search_with_cards(collection, query: str, agent_type: str,
         else:
             chunks.append((doc, meta))
 
-    # Per ogni file nei risultati, ottieni la card (genera se serve) — in parallelo
+    # For each file in results, get the card (generate if missing) — in parallel
     async def _fetch_card_for(meta):
         fname = meta.get("filename", "")
         fpath = meta.get("path", "")
@@ -228,7 +231,7 @@ async def search_with_cards(collection, query: str, agent_type: str,
             if existing and existing.get("ids") and existing.get("documents"):
                 return (existing["documents"][0], {"filename": fname})
 
-            # Card mancante → genera ora (lazy)
+            # Card missing → generate now (lazy)
             raw_chunks = await loop.run_in_executor(
                 None, lambda: collection.get(where={"path": fpath})
             )
@@ -240,8 +243,8 @@ async def search_with_cards(collection, query: str, agent_type: str,
             return None
         return None
 
-    # Lancia in parallelo tutte le richieste di card mancanti.
-    # asyncio.gather con return_exceptions=True per resilienza.
+    # Launch all missing card requests in parallel.
+    # asyncio.gather with return_exceptions=True for resilience.
     tasks = [_fetch_card_for(meta) for _, meta in chunks
              if meta.get("filename") not in seen_files]
     if tasks:
@@ -253,7 +256,7 @@ async def search_with_cards(collection, query: str, agent_type: str,
                     cards.append(res)
                     seen_files.add(meta["filename"])
 
-    # Costruisci il contesto: prima le schede, poi i chunk grezzi
+    # Build context: cards first, then raw chunks
     context = ""
     if cards:
         context += "=== DOCUMENT UNDERSTANDING ===\n"
