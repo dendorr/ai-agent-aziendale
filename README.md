@@ -1,4 +1,4 @@
-# AI Agent Aziendale
+# AI Agent for Small-Medium Companies
 
 A fully local, air-gapped AI system for company document analysis. No data ever leaves the local network. No cloud APIs. No training on company data.
 
