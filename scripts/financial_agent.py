@@ -701,8 +701,8 @@ async def adaptive_sql_context(query: str, schemas: list) -> str:
                         for r in rows:
                             parts.append(
                                 f"  {r[cat_col]}: "
-                                f"totale={r['totale']:,.2f} | n={r['righe']} | "
-                                f"media={r['media']:,.2f}"
+                                f"totale={r['totale'] or 0:,.2f} | n={r['righe']} | "
+                                f"media={r['media'] or 0:,.2f}"
                             )
 
         sample = query_db(GENERIC_DB, f'SELECT * FROM "{tname}" LIMIT 5')

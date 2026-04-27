@@ -58,7 +58,7 @@ pip install \
     fastapi \
     "uvicorn[standard]" \
     python-multipart \
-    requests \
+    openai \
     chromadb \
     openpyxl \
     pandas \
@@ -75,7 +75,10 @@ pip install \
     numpy \
     watchdog \
     sentence-transformers \
-    onnxruntime
+    onnxruntime \
+    ezdxf \
+    lxml \
+    numpy-stl
 
 # Project directories
 echo "Creating project structure..."
@@ -106,13 +109,15 @@ echo ""
 echo "     First time only:"
 echo "     docker run -d -p 3000:3000 --add-host=host.docker.internal:host-gateway -v open-webui:/app/backend/data --name open-webui ghcr.io/open-webui/open-webui:main"
 echo ""
-echo "  3. Pull Ollama models:"
+echo "  3. Pull Ollama models (development):"
 echo "     ollama pull qwen2.5:7b"
 echo "     ollama pull qwen3:0.6b"
-echo "     ollama pull llama3.2"
+echo ""
+echo "     Production (RTX 4090):"
+echo "     ollama pull qwen3:30b-a3b"
 echo ""
 echo "  4. Start the servers:"
 echo "     source ~/ai-env/bin/activate"
 echo "     cd ~/ai-agent/scripts"
-echo "     nohup python server.py > ~/ai-agent/logs/server.log 2>&1 &"
-echo "     nohup python watcher.py > ~/ai-agent/logs/watcher.log 2>&1 &"
+echo "     python server.py        # terminal 1"
+echo "     python watcher.py       # terminal 2"
