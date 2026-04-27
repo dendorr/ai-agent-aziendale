@@ -609,12 +609,82 @@ def index_folder(folder):
         total += n
     print(f"[Documents] Completato — {total} chunk totali")
 
+# ── Filename detection ────────────────────────────────────────────────────────
 
-# ── Search (async — chiamato dal server async) ────────────────────────────────
+def detect_filename_filter(query: str) -> dict | None:
+    """
+    Analizza la query dell'utente per individuare riferimenti a file specifici.
+    Se trova un match, ritorna un filtro ChromaDB 'where' per filename.
+    Altrimenti ritorna None (ricerca semantica normale).
+    
+    Gestisce varianti come: "lez 13", "Lez13", "lezione 13", "file lez13",
+    "prova itinere 1", "ProvaItinere1", "mock exam", ecc.
+    """
+    import chromadb
+
+    # Prendi tutti i filename indicizzati
+    try:
+        all_meta = collection.get(include=["metadatas"])
+        all_filenames = list({
+            m["filename"] for m in all_meta["metadatas"]
+            if m.get("filename") and m.get("type") != "semantic_card"
+        })
+    except Exception:
+        return None
+
+    if not all_filenames:
+        return None
+
+    # Normalizza: rimuovi estensione, spazi, underscore, tutto lowercase
+    def normalize(s: str) -> str:
+        s = Path(s).stem if "." in s else s
+        # Separa camelCase/PascalCase: "ProvaItinere1" → "prova itinere 1"
+        s = re.sub(r'([a-z])([A-Z])', r'\1 \2', s)
+        # Separa lettere da numeri: "Lez13" → "Lez 13"
+        s = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', s)
+        s = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', s)
+        return re.sub(r'[_\-\s]+', ' ', s).strip().lower()
+
+    query_norm = normalize(query)
+
+    # Cerca il filename con il miglior match
+    best_match = None
+    best_score = 0
+
+    for fname in all_filenames:
+        fname_norm = normalize(fname)
+
+        # Match esatto della parte normalizzata
+        if fname_norm in query_norm or query_norm in fname_norm:
+            score = len(fname_norm)
+            if score > best_score:
+                best_score = score
+                best_match = fname
+            continue
+
+        # Match parziale: tutte le parole del filename presenti nella query
+        fname_words = fname_norm.split()
+        query_words = query_norm.split()
+        if len(fname_words) >= 1 and all(fw in query_words for fw in fname_words):
+            score = len(fname_norm)
+            if score > best_score:
+                best_score = score
+                best_match = fname
+
+    if best_match:
+        print(f"  [smart-filter] Query '{query}' → filtro per '{best_match}'", flush=True)
+        return {"filename": best_match}
+
+    return None
+
+# ── Search (async — called from the server as async) ────────────────────────────────
 
 async def search(query: str) -> str:
-    """Async vector DB search with lazy semantic cards."""
-    return await analyzer.search_with_cards(collection, query, "documents", n_results=6)
+    """Async vector DB search with smart filename filtering + lazy semantic cards."""
+    where_filter = detect_filename_filter(query)
+    return await analyzer.search_with_cards(
+        collection, query, "documents", n_results=6, where_filter=where_filter
+    )
 
 
 # ── Routing model (async) ─────────────────────────────────────────────────────

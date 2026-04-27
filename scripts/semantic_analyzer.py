@@ -111,8 +111,8 @@ async def generate_semantic_card(filename: str, raw_text: str, agent_type: str) 
 
 # ── Get-or-create con cache ChromaDB + disco ──────────────────────────────────
 
-async def get_or_create_card(filepath: str, raw_text: str,
-                              agent_type: str, collection) -> str:
+async def search_with_cards(collection, query: str, agent_type: str,
+                             n_results: int = 6, where_filter: dict = None) -> str:
     """
     Ottiene la scheda dalla cache (ChromaDB) o la genera ora.
     Tutte le operazioni ChromaDB (sincrone) sono delegate a un executor.
@@ -187,10 +187,16 @@ async def search_with_cards(collection, query: str, agent_type: str,
         return "[No documents indexed yet]"
 
     n = min(n_results, count)
-    r = await loop.run_in_executor(
-        None,
-        lambda: collection.query(query_texts=[query], n_results=n),
-    )
+    if where_filter:
+        r = await loop.run_in_executor(
+            None,
+            lambda: collection.query(query_texts=[query], n_results=n, where=where_filter),
+        )
+    else:
+        r = await loop.run_in_executor(
+            None,
+            lambda: collection.query(query_texts=[query], n_results=n),
+        )
 
     cards = []
     chunks = []
