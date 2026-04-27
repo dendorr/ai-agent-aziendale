@@ -5,7 +5,9 @@
 fastapi
 uvicorn[standard]
 python-multipart
-requests
+
+# LLM client (AsyncOpenAI — compatibile con Ollama, vLLM, SGLang)
+openai
 
 # Vector database
 chromadb
@@ -30,6 +32,11 @@ pytesseract
 easyocr
 Pillow
 numpy
+
+# CAD files
+ezdxf
+lxml
+numpy-stl
 
 # File watching
 watchdog
