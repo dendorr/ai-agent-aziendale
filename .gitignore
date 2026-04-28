@@ -1,4 +1,4 @@
-# Dati aziendali — MAI su GitHub
+# ── Company data — NEVER on GitHub ────────────────────────
 data/
 memory/
 markdown_cache/
@@ -6,18 +6,36 @@ chroma/
 logs/
 *.db
 
-# Cache Python
+# ── Python cache ──────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
 .venv/
 ai-env/
 
-# Sistema
+# ── Environment / secrets ─────────────────────────────────
+.env
+.env.*
+
+# ── System files ──────────────────────────────────────────
 .DS_Store
 *.Zone.Identifier
-.env
+Thumbs.db
+
+# ── Kiwix offline wiki ────────────────────────────────────
 kiwix/
+
+# ── Debug / temp ──────────────────────────────────────────
 server_debug.log
-kiwix/
-server_debug.log
+*.log.bak
+
+# ── ODA File Converter temp files ─────────────────────────
+oda_in_*/
+oda_out_*/
+
+# ── IDE ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
